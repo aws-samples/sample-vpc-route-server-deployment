@@ -11,7 +11,7 @@ In the diagram below, instances Inst1 and Inst2 are deployed in different AZs (A
 
 Both Instance would  have eBGP sessions with VPC route server endpoints. both Inst1 and Inst2 is advertizing 172.16.1.1/32 over BGP to VPC route server. Inst2 is appending additional ASNs to the AS PATH. The gateway calcualtes the next hop infomation for 172.16.1.1/32 using BGP  prefixes and then programs the routing table associated with that subnet to point to the ENI that owns the next hop IP as advertized in BGP.
 
-![Figure 1. Inter AZ Application](Inter-az.png)
+![Figure 1. Inter AZ Application](inter-az.png)
 
 
 ## Clouformation to deploy the solution
