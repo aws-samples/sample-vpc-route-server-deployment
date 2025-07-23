@@ -1,0 +1,442 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+# AL2023 ARM AMI
+Parameters:
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-arm64'
+
+Resources:  
+
+# Create the VPC
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: 
+        - Key : "Name"
+          Value : "VPC-RS"
+
+  # Create the first subnet in the first Availability Zone
+  MySubnetAZ1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: "10.0.1.0/24"
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]  # Select the first AZ in the region
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key : "Name"
+          Value : "subnet-az1"
+  
+  # Create the second subnet in the second Availability Zone
+  MySubnetAZ2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: "10.0.2.0/24"
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]  # Select the second AZ in the region
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key : "Name"
+          Value : "subnet-az2"
+
+  # Create the 3rd subnet in the second Availability Zone
+  MySubnet2AZ2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: "10.0.3.0/24"
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]  # Select the second AZ in the region
+      MapPublicIpOnLaunch: false
+      Tags: 
+        - Key : "Name"
+          Value : "subnet2-az2"
+
+  # Create an EC2 Security Group
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow bgp and icmp traffic "
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 179
+          ToPort: 179
+          CidrIp: 10.0.0.0/16
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 10.0.0.0/16
+
+
+  # Create Internet Gateway
+  MyInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: IGW-RS
+
+  # Attach IGW to VPC
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref MyInternetGateway
+
+
+
+  # Create IAM role for SSM to access instances
+  SSMInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: EC2ModifyAttributes
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:ModifyInstanceAttribute
+                  - ec2:DescribeInstances
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    "ec2:ResourceTag/Project": "RouteServer-Demo"
+
+  # Create instance profile
+  SSMInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref SSMInstanceRole
+
+  # Create Route Server
+  MyRouteServer:
+    Type: AWS::EC2::RouteServer
+    Properties:
+      AmazonSideAsn: 65000
+      SnsNotificationsEnabled: True
+      Tags: 
+        - Key : "Name"
+          Value : "RS1"
+      
+
+  # Create Route Server Association
+  RouteServerAssocation1:
+    Type: AWS::EC2::RouteServerAssociation
+    DependsOn: [MyRouteServer]
+    Properties:
+      RouteServerId: !Ref MyRouteServer
+      VpcId: !Ref MyVPC
+
+  # Create Route Server Endpoints in each subnet
+  RouteServerEndpoint1:
+    Type: AWS::EC2::RouteServerEndpoint
+    DependsOn: [RouteServerAssocation1]
+    Properties:
+      RouteServerId: !Ref MyRouteServer
+      SubnetId: !Ref MySubnetAZ1
+      Tags: 
+        - Key : "Name"
+          Value : "rs1-az1-rse1"
+
+  RouteServerEndpoint2:
+    Type: AWS::EC2::RouteServerEndpoint
+    DependsOn: [RouteServerAssocation1]
+    Properties:
+      RouteServerId: !Ref MyRouteServer
+      SubnetId: !Ref MySubnetAZ1
+      Tags: 
+        - Key : "Name"
+          Value : "rs1-az1-rse2"
+
+  RouteServerEndpoint3:
+    Type: AWS::EC2::RouteServerEndpoint
+    DependsOn: [RouteServerAssocation1]
+    Properties:
+      RouteServerId: !Ref MyRouteServer
+      SubnetId: !Ref MySubnetAZ2
+      Tags: 
+        - Key : "Name"
+          Value : "rs1-az2-rse3"
+
+  RouteServerEndpoint4:
+    Type: AWS::EC2::RouteServerEndpoint
+    DependsOn: [RouteServerAssocation1]
+    Properties:
+      RouteServerId: !Ref MyRouteServer
+      SubnetId: !Ref MySubnetAZ2
+      Tags: 
+        - Key : "Name"
+          Value : "rs1-az2-rse4"
+
+  # create a route table
+  MyRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: RouteTable-RS
+
+  # Associate route tables with subnets
+  RouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MySubnetAZ1
+      RouteTableId: !Ref MyRouteTable1
+
+  RouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MySubnetAZ2
+      RouteTableId: !Ref MyRouteTable1
+
+  RouteTableAssociation3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MySubnet2AZ2
+      RouteTableId: !Ref MyRouteTable1
+
+
+  # Add default route to IGW in route tables
+  DefaultRoute1:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref MyRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MyInternetGateway
+
+  # Associate RS with route table
+  RouteServerPropogation:
+    Type: AWS::EC2::RouteServerPropagation
+    Properties:
+      RouteServerId: !Ref MyRouteServer
+      RouteTableId: !Ref MyRouteTable1
+
+
+  # First EC2 Instance in Subnet AZ1
+  MyInstanceAZ1:
+    Type: AWS::EC2::Instance
+    DependsOn: [RouteServerEndpoint1,RouteServerEndpoint2]
+    Properties:
+      InstanceType: t4g.micro
+      ImageId: !Ref LatestAmiId
+      EbsOptimized: true
+      Monitoring: true
+      IamInstanceProfile: !Ref SSMInstanceProfile
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      SubnetId: !Ref MySubnetAZ1
+      Tags: 
+        - Key : "Name"
+          Value : "instance-rs-az1"
+        - Key: Project
+          Value: RouteServer-Demo
+      UserData:
+        Fn::Base64:
+          Fn::Sub:
+          - |
+            #!/bin/bash
+            cd /home/ec2-user
+            sudo ip add a 172.16.1.1/32 dev lo
+            sleep 10
+            TOKEN=`curl -X PUT "169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"`
+            INSTANCE_IP=`curl -H "X-aws-ec2-metadata-token: $TOKEN" 169.254.169.254/latest/meta-data/local-ipv4`
+            INSTANCE_ID=`curl -H "X-aws-ec2-metadata-token: $TOKEN" 169.254.169.254/latest/meta-data/instance-id`
+            aws ec2 modify-instance-attribute --no-source-dest-check --instance-id "$INSTANCE_ID"           
+            ENDPOINT1_IP="${Endpoint1IP}"
+            ENDPOINT2_IP="${Endpoint2IP}"
+            echo "Route Server Endpoint 1 IP: $ENDPOINT1_IP"
+            echo "Route Server Endpoint 2 IP: $ENDPOINT2_IP"
+            wget https://github.com/osrg/gobgp/releases/download/v3.37.0/gobgp_3.37.0_linux_arm64.tar.gz
+            tar xvzf gobgp_3.37.0_linux_arm64.tar.gz
+            cat > /home/ec2-user/gobgpd.conf << EOF
+            [global.config]
+            as = 65001
+            router-id = "$INSTANCE_IP"
+            [[neighbors]]
+              [neighbors.config]
+                neighbor-address = "${Endpoint1IP}"
+                peer-as = 65000
+              [[neighbors.afi-safis]]
+                [neighbors.afi-safis.config]
+                  afi-safi-name = "ipv4-unicast"
+
+            [[neighbors]]
+              [neighbors.config]
+                neighbor-address = "${Endpoint2IP}"
+                peer-as = 65000
+              [[neighbors.afi-safis]]
+                [neighbors.afi-safis.config]
+                  afi-safi-name = "ipv4-unicast"
+            EOF
+            sudo ./gobgpd -f gobgpd.conf &
+            sleep 5
+            sudo ./gobgp global rib add 172.16.1.1/32 -a ipv4
+          - Endpoint1IP: !GetAtt RouteServerEndpoint1.EniAddress
+            Endpoint2IP: !GetAtt RouteServerEndpoint2.EniAddress
+
+  # Second EC2 Instance in Subnet AZ2
+  MyInstanceAZ2:
+    Type: AWS::EC2::Instance
+    DependsOn: [RouteServerEndpoint3,RouteServerEndpoint4]
+    Properties:
+      InstanceType: t4g.micro
+      ImageId: !Ref LatestAmiId
+      EbsOptimized: true
+      Monitoring: true
+      IamInstanceProfile: !Ref SSMInstanceProfile
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      SubnetId: !Ref MySubnetAZ2
+      Tags: 
+        - Key : "Name"
+          Value : "instance-rs-az2"
+        - Key: Project
+          Value: RouteServer-Demo
+      UserData:
+        Fn::Base64:
+          Fn::Sub:
+          - |
+            #!/bin/bash
+            cd /home/ec2-user
+            sudo ip add a 172.16.1.1/32 dev lo
+            sleep 10
+            TOKEN=`curl -X PUT "169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"`
+            INSTANCE_IP=`curl -H "X-aws-ec2-metadata-token: $TOKEN" 169.254.169.254/latest/meta-data/local-ipv4`
+            INSTANCE_ID=`curl -H "X-aws-ec2-metadata-token: $TOKEN" 169.254.169.254/latest/meta-data/instance-id`
+            aws ec2 modify-instance-attribute --no-source-dest-check --instance-id "$INSTANCE_ID"           
+            ENDPOINT1_IP="${Endpoint3IP}"
+            ENDPOINT2_IP="${Endpoint4IP}"
+            echo "Route Server Endpoint 3 IP: $ENDPOINT1_IP"
+            echo "Route Server Endpoint 4 IP: $ENDPOINT2_IP"
+            wget https://github.com/osrg/gobgp/releases/download/v3.37.0/gobgp_3.37.0_linux_arm64.tar.gz
+            tar xvzf gobgp_3.37.0_linux_arm64.tar.gz
+            cat > /home/ec2-user/gobgpd.conf << EOF
+            [global.config]
+            as = 65001
+            router-id = "$INSTANCE_IP"
+            [[neighbors]]
+              [neighbors.config]
+                neighbor-address = "${Endpoint3IP}"
+                peer-as = 65000
+              [[neighbors.afi-safis]]
+                [neighbors.afi-safis.config]
+                  afi-safi-name = "ipv4-unicast"
+
+            [[neighbors]]
+              [neighbors.config]
+                neighbor-address = "${Endpoint4IP}"
+                peer-as = 65000
+              [[neighbors.afi-safis]]
+                [neighbors.afi-safis.config]
+                  afi-safi-name = "ipv4-unicast"
+            EOF
+            sudo ./gobgpd -f gobgpd.conf &
+            sleep 5
+            sudo ./gobgp global rib add 172.16.1.1/32  aspath "65001 65001" -a ipv4
+          - Endpoint3IP: !GetAtt RouteServerEndpoint3.EniAddress
+            Endpoint4IP: !GetAtt RouteServerEndpoint4.EniAddress
+
+  # Third EC2 Instance in Subnet AZ2
+  MyAccessInstance:
+    Type: AWS::EC2::Instance
+    DependsOn: [RouteServerEndpoint3,RouteServerEndpoint4]
+    Properties:
+      InstanceType: t4g.micro
+      ImageId: !Ref LatestAmiId
+      EbsOptimized: true
+      Monitoring: true
+      IamInstanceProfile: !Ref SSMInstanceProfile
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      SubnetId: !Ref MySubnet2AZ2
+      Tags: 
+        - Key : "Name"
+          Value : "access-instance"
+
+  # create route server peers
+  Mybgppeer1:
+    Type: AWS::EC2::RouteServerPeer
+    DependsOn: [MyInstanceAZ1, MyInstanceAZ2]
+    Properties:
+      BgpOptions: 
+        PeerAsn: 65001
+        PeerLivenessDetection: 'bgp-keepalive'
+      PeerAddress: !GetAtt MyInstanceAZ1.PrivateIp
+      RouteServerEndpointId: !GetAtt RouteServerEndpoint1.Id
+      Tags: 
+        - Key : "Name"
+          Value : "RouteServerPeer1"
+  
+  Mybgppeer2:
+    Type: AWS::EC2::RouteServerPeer
+    DependsOn: [MyInstanceAZ1, MyInstanceAZ2]
+    Properties:
+      BgpOptions: 
+        PeerAsn: 65001
+        PeerLivenessDetection: 'bgp-keepalive'
+      PeerAddress: !GetAtt MyInstanceAZ1.PrivateIp
+      RouteServerEndpointId: !GetAtt RouteServerEndpoint2.Id
+      Tags: 
+        - Key : "Name"
+          Value : "RouteServerPeer2"
+
+  Mybgppeer3:
+    Type: AWS::EC2::RouteServerPeer
+    DependsOn: [MyInstanceAZ1, MyInstanceAZ2]
+    Properties:
+      BgpOptions: 
+        PeerAsn: 65001
+        PeerLivenessDetection: 'bgp-keepalive'
+      PeerAddress: !GetAtt MyInstanceAZ2.PrivateIp
+      RouteServerEndpointId: !GetAtt RouteServerEndpoint3.Id
+      Tags: 
+        - Key : "Name"
+          Value : "RouteServerPeer3"
+
+  Mybgppeer4:
+    Type: AWS::EC2::RouteServerPeer
+    DependsOn: [MyInstanceAZ1, MyInstanceAZ2]
+    Properties:
+      BgpOptions: 
+        PeerAsn: 65001
+        PeerLivenessDetection: 'bgp-keepalive'
+      PeerAddress: !GetAtt MyInstanceAZ2.PrivateIp
+      RouteServerEndpointId: !GetAtt RouteServerEndpoint4.Id
+      Tags: 
+        - Key : "Name"
+          Value : "RouteServerPeer4"
+        
+Outputs:
+
+  RouteServerEndpoint1IP:
+    Description: "IP of Route Server Endpoint 1"
+    Value: !GetAtt RouteServerEndpoint1.EniAddress
+
+  RouteServerEndpoint2IP:
+    Description: "IP of Route Server Endpoint 2"
+    Value: !GetAtt RouteServerEndpoint2.EniAddress
+
+  RouteServerEndpoint3IP:
+    Description: "IP of Route Server Endpoint 3"
+    Value: !GetAtt RouteServerEndpoint3.EniAddress
+
+  RouteServerEndpoint4IP:
+    Description: "IP of Route Server Endpoint 4"
+    Value: !GetAtt RouteServerEndpoint4.EniAddress
