@@ -7,14 +7,16 @@ VPC Route Server provides dynamic routing capabilities within VPC by using the B
 ## Using floating IP for Inter AZ failover
 The use case we will be testing is for an application that is deployed across 2 availability zones. The application utilizes a floating IP for reachiability to the service offered. We will use BGP routing to failover traffic between active and standby nodes that are deployed across different avaialbility zones.
 
-In the diagram below, instances Inst1 and Inst2 are deployed in different AZs ( AZ1 and AZ2) in AWS VPC. VPC route server endpoints are deployed in the same subnets as the FW and has reachability to both FWs. 
+In the diagram below, instances Inst1 and Inst2 are deployed in different AZs (AZ1 and AZ2) in AWS VPC. VPC route server endpoints are deployed in the same subnets as the FW and has reachability to both FWs. 
 
 Both Instance would  have eBGP sessions with VPC route server endpoints. both Inst1 and Inst2 is advertizing 172.16.1.1/32 over BGP to VPC route server. Inst2 is appending additional ASNs to the AS PATH. The gateway calcualtes the next hop infomation for 172.16.1.1/32 using BGP  prefixes and then programs the routing table associated with that subnet to point to the ENI that owns the next hop IP as advertized in BGP.
+
+![Figure 1. Inter AZ Application](Inter-az.png)
 
 
 ## Clouformation to deploy the solution
 
-The CloudFormation in this repo will deploy the solution in your AWS account. The CloudFormation creates the following reousrces:
+The [CloudFormation](RS_CF.yaml) in this repo will deploy the solution in your AWS account. The CloudFormation creates the following reousrces:
 
 -VPC with three subnets across two AZs 
 -VPC route table for the three subnets created
@@ -104,6 +106,10 @@ To simulate a failover , you can shut down the active instance (instance-rs-az1)
 3.	A BGP re-convergence process is triggered, and the route advertised by the standby instance is now chosen as the best path.
 4.	The VPC route table is updated to forward traffic for 172.16.1.1/32 to the ENI of the standby instance (ENI-B).
 5.	Traffic seamlessly transitions to the standby instance, maintaining application availability without client disruption.
+
+![Figure 2. Inter AZ failover](inter-az-failover.png)
+
+
 
 To test the routing setup, you can access the test instance “test-instance” using the Systems Manager method. When you are logged in, you can ping 172.16.1.1 and you should get a reply that is originating from the now active instance “instance-rs-az2”.
 
