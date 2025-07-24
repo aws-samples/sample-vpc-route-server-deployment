@@ -1,6 +1,10 @@
 # Sample VPC Route Server Cloudformation 
 
-## Introduction
+## What does this do?
+
+This repo hosts sample Cloudformation template to create a VPC route server and deploy end points in a VPC. The template create needed resrouces such as VPC , route tables, subnets , instances and security groups
+
+## Introduction to VPC route server
 
 [VPC Route Server](https://docs.aws.amazon.com/vpc/latest/userguide/dynamic-routing-route-server.html) provides dynamic routing capabilities within VPC by using the BGP routing protocol. Many network functions (firewalls, DPIs , 5G core , etc.) utilize BGP to influence routing and achieve high avialability and failover in between clusters. VPC Route Server can dynamically update VPC and IGW route tables with preferred IPv4 or IPv6 routes to achieve routing fault tolerance for workloads. When a failure occurs, the system can automatically reroute traffic within the VPC, which enhances the manageability of VPC routing and improves interoperability with third-party workloads.
 
@@ -15,7 +19,7 @@ Both Instance would have eBGP sessions with VPC route server endpoints. both Ins
 
 ## Clouformation to deploy the solution
 
-The [CloudFormation](rs_cf.yaml) in this repo will deploy the solution in your AWS account. The CloudFormation creates the following reousrces:
+The [CloudFormation template](RS_CF.yaml) in this repo will deploy the solution in your AWS account. The CloudFormation creates the following reousrces:
 
 -VPC with three subnets across two AZs 
 -VPC route table for the three subnets created
@@ -121,10 +125,10 @@ PING 172.16.1.1 (172.16.1.1) 56(84) bytes of data.
 
 To make sure of the rapid detection of failure, the BFD protocol can be enabled between the application and the RSEs. BFD significantly reduces the time needed to detect link or application failure.
 
-## Summary
+## Cleanup
 
-This scenario demonstrates a robust method for implementing floating IP-based failover in AWS using standard routing protocols such as BGP and BFD. It enables fast, reliable, and transparent failover between AZs without needing DNS updates or manual intervention. This solution is ideal for high-availability workloads that need minimal downtime and maximum resiliency.
- 
+To clean up the environment, you can delete the cloudformation template using the AWS console or AWS CLI. 
+If cloudformation deletion fails , retry the deletion process and select "Force delete this entire stack" to complete the deletion process
 
 
 ## Security
@@ -134,4 +138,3 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more inform
 ## License
 
 This library is licensed under the MIT-0 License. See the LICENSE file.
-
