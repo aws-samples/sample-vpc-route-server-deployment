@@ -1,18 +1,17 @@
-# Sample VPC Route Server Deployement 
+# Sample VPC Route Server Cloudformation 
 
 ## Introduction
 
-VPC Route Server provides dynamic routing capabilities within VPC by using the BGP routing protocol. Many existing network functions ( firewalls, DPIs , 5G core , etc.) utilize BGP to influence routing and achieve high avialability and failover in between clusters. VPC Route Server can dynamically update VPC and IGW route tables with preferred IPv4 or IPv6 routes to achieve routing fault tolerance for workloads. When a failure occurs, the system can automatically reroute traffic within the VPC, which enhances the manageability of VPC routing and improves interoperability with third-party workloads. 
+[VPC Route Server](https://docs.aws.amazon.com/vpc/latest/userguide/dynamic-routing-route-server.html) provides dynamic routing capabilities within VPC by using the BGP routing protocol. Many network functions (firewalls, DPIs , 5G core , etc.) utilize BGP to influence routing and achieve high avialability and failover in between clusters. VPC Route Server can dynamically update VPC and IGW route tables with preferred IPv4 or IPv6 routes to achieve routing fault tolerance for workloads. When a failure occurs, the system can automatically reroute traffic within the VPC, which enhances the manageability of VPC routing and improves interoperability with third-party workloads.
 
 ## Using floating IP for Inter AZ failover
 The use case we will be testing is for an application that is deployed across 2 availability zones. The application utilizes a floating IP for reachiability to the service offered. We will use BGP routing to failover traffic between active and standby nodes that are deployed across different avaialbility zones.
 
 In the diagram below, instances Inst1 and Inst2 are deployed in different AZs (AZ1 and AZ2) in AWS VPC. VPC route server endpoints are deployed in the same subnets as the FW and has reachability to both FWs. 
 
-Both Instance would  have eBGP sessions with VPC route server endpoints. both Inst1 and Inst2 is advertizing 172.16.1.1/32 over BGP to VPC route server. Inst2 is appending additional ASNs to the AS PATH. The gateway calcualtes the next hop infomation for 172.16.1.1/32 using BGP  prefixes and then programs the routing table associated with that subnet to point to the ENI that owns the next hop IP as advertized in BGP.
+Both Instance would have eBGP sessions with VPC route server endpoints. both Inst1 and Inst2 is advertizing 172.16.1.1/32 over BGP to VPC route server. Inst2 is appending additional ASNs to the AS PATH. The gateway calcualtes the next hop infomation for 172.16.1.1/32 using BGP  prefixes and then programs the routing table associated with that subnet to point to the ENI that owns the next hop IP as advertized in BGP.
 
 ![Figure 1. Inter AZ Application](inter-az.png)
-
 
 ## Clouformation to deploy the solution
 
@@ -25,11 +24,11 @@ The [CloudFormation](RS_CF.yaml) in this repo will deploy the solution in your A
 -Create two VPC Route Server endpoints (RSEs) in each subnet (for high availability) 
 -Create route server peers
 -Create two instances to simulate the HA application under test. 
--Gobgp is used to run BGP on each instance. 
+-[Gobgp](https://github.com/osrg/gobgp/) is installed in each instance to run BGP. 
 -Each instance is running BGP using ASN 65001 and peers with RSEs in their prospective subnets
 -Gobgp configurations are preconfigured as part of the user-data of the instances and are stored in gobgpd.conf file in the /home/ec2-user directory 
 -Create a test instance to ping the loopback IP of the high availability application under test
--AWS Systems Manager can be used to access the instances created
+-AWS Systems Manager is used to access the instances created
 
 You can use AWS CLI or AWS console to deploy the cloudforamtion. 
 
@@ -46,7 +45,6 @@ You can inspect the Gobgp configuration by connecting to one of the instances (i
  or instance-rs-az2) using EC2 Session Manager .
 
 The Gobgp configuration is in /home/ec2-user/gobgpd.conf.
-
 
 ```shell
 sh-5.2$ sudo more /home/ec2-user/gobgpd.conf
