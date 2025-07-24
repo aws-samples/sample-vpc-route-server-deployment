@@ -15,7 +15,7 @@ Both Instance would have eBGP sessions with VPC route server endpoints. both Ins
 
 ## Clouformation to deploy the solution
 
-The [CloudFormation](RS_CF.yaml) in this repo will deploy the solution in your AWS account. The CloudFormation creates the following reousrces:
+The [CloudFormation](rs_cf.yaml) in this repo will deploy the solution in your AWS account. The CloudFormation creates the following reousrces:
 
 -VPC with three subnets across two AZs 
 -VPC route table for the three subnets created
