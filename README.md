@@ -48,7 +48,7 @@ Once Cloudformation is deployed successfully:
 You can inspect the Gobgp configuration by connecting to one of the instances (instance-rs-az1 
  or instance-rs-az2) using EC2 Session Manager .
 
-The Gobgp configuration is in /home/ec2-user/gobgpd.conf.
+The Gobgp configuration is in /home/ec2-user/gobgpd.conf . Below is a sample of the file. Please note that the neighbor IP addresses will change depending on the actual RSE address. 
 
 ```shell
 sh-5.2$ sudo more /home/ec2-user/gobgpd.conf
