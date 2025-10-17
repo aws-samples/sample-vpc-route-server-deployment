@@ -50,7 +50,7 @@ Resources:
       VpcId: !Ref MyVPC
       CidrBlock: "10.0.3.0/24"
       AvailabilityZone: !Select [ 1, !GetAZs '' ]  # Select the second AZ in the region
-      MapPublicIpOnLaunch: false
+      MapPublicIpOnLaunch: true
       Tags: 
         - Key : "Name"
           Value : "subnet2-az2"
